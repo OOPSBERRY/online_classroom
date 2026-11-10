@@ -1,4 +1,6 @@
+import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
+import { brotliCompressSync, constants as zlibConstants, gzipSync } from 'node:zlib';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -43,6 +45,48 @@ function assignRoom(kind) {
   return createRoom(`${kind}-${number}`);
 }
 
+// 전송량을 줄이려고 파일은 한 번 읽어 압축해 두고, 브라우저가 이미 가진 파일은 다시 보내지 않는다.
+const fileCache = new Map();
+
+async function loadFile(filePath, relative) {
+  if (fileCache.has(filePath)) return fileCache.get(filePath);
+  const body = await readFile(filePath);
+  const type = MIME[extname(filePath)] || 'application/octet-stream';
+  const compressible = /^(text\/|application\/json|image\/svg)/.test(type);
+  // 이름이 바뀌지 않는 큰 파일(3D 도구, 글꼴)은 오래 보관하게 하고, 나머지는 바뀌었는지만 확인하게 한다.
+  const longLived = /^[\\/](vendor|fonts)[\\/]/.test(relative);
+  const file = {
+    body,
+    type,
+    etag: `"${createHash('sha1').update(body).digest('base64url').slice(0, 20)}"`,
+    cache: longLived ? 'public, max-age=2592000' : 'public, max-age=0, must-revalidate',
+    br: compressible ? brotliCompressSync(body, { params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 11 } }) : null,
+    gzip: compressible ? gzipSync(body, { level: 9 }) : null,
+  };
+  fileCache.set(filePath, file);
+  return file;
+}
+
+function sendFile(req, res, file) {
+  const headers = { 'content-type': file.type, 'cache-control': file.cache, etag: file.etag, vary: 'Accept-Encoding' };
+  if (req.headers['if-none-match'] === file.etag) {
+    res.writeHead(304, headers);
+    res.end();
+    return;
+  }
+  const accept = req.headers['accept-encoding'] || '';
+  let body = file.body;
+  if (file.br && /\bbr\b/.test(accept)) {
+    body = file.br;
+    headers['content-encoding'] = 'br';
+  } else if (file.gzip && /\bgzip\b/.test(accept)) {
+    body = file.gzip;
+    headers['content-encoding'] = 'gzip';
+  }
+  res.writeHead(200, headers);
+  res.end(req.method === 'HEAD' ? undefined : body);
+}
+
 function sendJson(res, status, body) {
   res.writeHead(status, { 'content-type': MIME['.json'], 'cache-control': 'no-store' });
   res.end(JSON.stringify(body));
@@ -68,9 +112,7 @@ const server = createServer(async (req, res) => {
     const relative = normalize(decodeURIComponent(pathname === '/' ? '/index.html' : pathname));
     const filePath = join(PUBLIC_DIR, relative);
     if (!filePath.startsWith(PUBLIC_DIR + sep)) throw new Error('outside public');
-    const body = await readFile(filePath);
-    res.writeHead(200, { 'content-type': MIME[extname(filePath)] || 'application/octet-stream' });
-    res.end(body);
+    sendFile(req, res, await loadFile(filePath, relative));
   } catch {
     res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
     res.end('찾을 수 없어요');

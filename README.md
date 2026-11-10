@@ -28,7 +28,8 @@ npm start
 - `public/js/avatar.js`: 아바타와 동작
 - `public/js/data.js`: 반 정원, 닉네임 단어, 말풍선 문장
 - 반 운영: 자습 1반과 추억 1반은 늘 있고, 25명이 차면 서버가 다음 반을 엽니다. 나중에 연 반은 1분 넘게 비면 닫힙니다.
-- 글꼴: Pretendard (`public/fonts`, SIL Open Font License)
+- 글꼴: Pretendard (SIL Open Font License). 전송량을 줄이려고 화면에 쓰는 글자만 남긴 `public/fonts/PretendardSubset.woff2`를 씁니다. 원본은 `tools/`에 있고, 코드에 새 한글 문구를 넣으면 `npm run fonts`로 다시 만듭니다.
+- 전송량: 서버가 파일을 압축해 보내고, 브라우저가 이미 가진 파일은 다시 보내지 않습니다. 첫 접속 약 300KB.
 - 이용자 수: GoatCounter(`minfp-online-classroom`)로 세고 왼쪽 위에 오늘/전체를 표시합니다. 숫자는 최대 4시간 늦을 수 있습니다.
 - `public/js/schedule.js`: 모두 같은 시계로 도는 40분 수업 + 10분 쉬는 시간 (주소에 `?demo=1`을 붙이면 40초 + 10초)
 

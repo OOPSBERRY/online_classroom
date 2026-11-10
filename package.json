@@ -5,12 +5,16 @@
   "type": "module",
   "description": "함께 머무는 온라인 초등학교 교실",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "fonts": "node tools/subset-font.mjs"
   },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
     "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "subset-font": "^2.9.0"
   }
 }
